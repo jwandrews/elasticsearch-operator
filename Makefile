@@ -6,8 +6,6 @@
 TAG ?= 0.4.0
 PREFIX ?= upmcenterprises
 pkgs = $(shell go list ./... | grep -v /vendor/ | grep -v /test/)
-# go source files, ignore vendor directory
-SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
 
 all: container
 
@@ -27,7 +25,7 @@ format:
 	go fmt $(pkgs)
 
 check:
-	@go tool vet ${SRC}
+	@go vet ./...
 
 helm-package:
 	helm package charts/{elasticsearch,elasticsearch-operator} -d charts
