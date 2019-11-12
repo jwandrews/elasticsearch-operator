@@ -34,10 +34,10 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/heptiolabs/healthcheck"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
 
 	"github.com/upmc-enterprises/elasticsearch-operator/pkg/controller"
 	"github.com/upmc-enterprises/elasticsearch-operator/pkg/k8sutil"
@@ -65,6 +65,11 @@ func init() {
 	flag.StringVar(&initDaemonsetNamespace, "initDaemonsetNamespace", "default", "Namespace to deploy the sysctl init daemonset into")
 	flag.StringVar(&busyboxImage, "busybox-image", "busybox:1.26.2", "Image to use for sysctl init daemonset")
 	flag.Parse()
+}
+
+func getPid() (pid int, err error) {
+	pid = os.Getpid()
+	return pid, nil
 }
 
 // Main entrypoint
@@ -104,7 +109,7 @@ func Main() int {
 	var wg sync.WaitGroup
 
 	r := prometheus.NewRegistry()
-	r.MustRegister(prometheus.NewProcessCollector(os.Getpid(), ""))
+	r.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{PidFn: getPid, Namespace: ""}))
 	r.MustRegister(prometheus.NewGoCollector())
 
 	health := healthcheck.NewMetricsHandler(r, "elasticsearch-operator")

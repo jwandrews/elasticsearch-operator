@@ -27,7 +27,7 @@ package k8sutil
 import (
 	"fmt"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	myspec "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
 	"k8s.io/api/apps/v1beta1"
 	v1 "k8s.io/api/core/v1"

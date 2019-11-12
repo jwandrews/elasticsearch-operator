@@ -31,7 +31,7 @@ import (
 
 	"github.com/upmc-enterprises/elasticsearch-operator/pkg/elasticsearchutil"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	elasticsearchoperator "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator"
 	myspec "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
 	clientset "github.com/upmc-enterprises/elasticsearch-operator/pkg/client/clientset/versioned"
