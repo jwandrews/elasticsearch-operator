@@ -3,7 +3,6 @@ module github.com/upmc-enterprises/elasticsearch-operator
 go 1.20
 
 require (
-	github.com/golang/glog v1.1.1
 	github.com/heptiolabs/healthcheck v0.0.0-20211123025425-613501dd5deb
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0

@@ -13,7 +13,10 @@ build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -o _output/bin/elasticsearch-operator --ldflags '-w' ./cmd/operator/main.go
 
 container: build
-	docker build -t $(PREFIX)/elasticsearch-operator:$(TAG) .
+	docker build \
+		--platform=linux/amd64 \
+		-t $(PREFIX)/elasticsearch-operator:$(TAG) \
+		.
 
 push:
 	docker push $(PREFIX)/elasticsearch-operator:$(TAG)

@@ -140,7 +140,7 @@ type ClusterSpec struct {
 	//Cerebro
 	Cerebro Cerebro `json:"cerebro"`
 
-	Scheduler Scheduler
+	Scheduler Scheduler `json:"scheduler"`
 
 	//KeepSecretsOnDelete tells the operator to not delete secrets when a cluster is destroyed
 	KeepSecretsOnDelete bool `json:"keep-secrets-on-delete"`
@@ -262,27 +262,27 @@ type Cerebro struct {
 
 // Scheduler stores info about how to snapshot the cluster
 type Scheduler struct {
-	RepoType     string
-	BucketName   string
-	CronSchedule string
-	Enabled      bool
-	Auth         SchedulerAuthentication
-	RepoAuth     RepoSchedulerAuthentication
-	RepoRegion   string
-	ElasticURL   string
-	Namespace    string
-	ClusterName  string
-	Image        string
-	UseSSL       bool
+	RepoType     string                      `json:"repoType"`
+	BucketName   string                      `json:"bucketName"`
+	CronSchedule string                      `json:"cronSchedule"`
+	Enabled      bool                        `json:"enabled"`
+	Auth         SchedulerAuthentication     `json:"auth"`
+	RepoAuth     RepoSchedulerAuthentication `json:"repoAuth"`
+	RepoRegion   string                      `json:"repoRegion"`
+	ElasticURL   string                      `json:"elasticUrl"`
+	Namespace    string                      `json:"namespace"`
+	ClusterName  string                      `json:"clusterName"`
+	Image        string                      `json:"image"`
+	UseSSL       bool                        `json:"useSsl"`
 }
 
 type RepoSchedulerAuthentication struct {
-	RepoAccessKey string
-	RepoSecretKey string
+	RepoAccessKey string `json:"repoAccessKey"`
+	RepoSecretKey string `json:"repoSecretKey"`
 }
 
 // SchedulerAuthentication stores credentials used to authenticate against snapshot endpoint
 type SchedulerAuthentication struct {
-	UserName string
-	Password string
+	UserName string `json:"userName"`
+	Password string `json:"password"`
 }

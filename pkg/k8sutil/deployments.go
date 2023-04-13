@@ -406,22 +406,22 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
-							corev1.Container{
+							{
 								Name:            deploymentName,
 								Image:           baseImage,
 								ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
 								Env: []corev1.EnvVar{
-									corev1.EnvVar{
+									{
 										Name:  "ELASTICSEARCH_URL",
 										Value: GetESURL(component, useSSL),
 									},
-									corev1.EnvVar{
+									{
 										Name:  "NODE_DATA",
 										Value: "false",
 									},
 								},
 								Ports: []corev1.ContainerPort{
-									corev1.ContainerPort{
+									{
 										Name:          "http",
 										ContainerPort: 5601,
 										Protocol:      corev1.ProtocolTCP,

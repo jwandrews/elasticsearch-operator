@@ -21,7 +21,10 @@ set -o pipefail
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
 
-${CODEGEN_PKG}/generate-internal-groups.sh \
+chmod +x "${CODEGEN_PKG}/generate-groups.sh"
+chmod +x "${CODEGEN_PKG}/generate-internal-groups.sh"
+
+"${CODEGEN_PKG}/generate-internal-groups.sh" \
   all \
   github.com/upmc-enterprises/elasticsearch-operator/pkg/client \
   github.com/upmc-enterprises/elasticsearch-operator/pkg/apis \
@@ -29,13 +32,13 @@ ${CODEGEN_PKG}/generate-internal-groups.sh \
   elasticsearchoperator:v1  \
   --output-base "${SCRIPT_ROOT}/gen/internal" \
   --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
-  $@
+  "$@"
 
-${CODEGEN_PKG}/generate-groups.sh \
+"${CODEGEN_PKG}/generate-groups.sh" \
   all \
   github.com/upmc-enterprises/elasticsearch-operator/pkg/client \
   github.com/upmc-enterprises/elasticsearch-operator/pkg/apis \
   elasticsearchoperator:v1  \
   --output-base "${SCRIPT_ROOT}/gen/groups" \
   --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
-  $@
+  "$@"

@@ -27,6 +27,7 @@ package elasticsearchoperator
 import (
 	"fmt"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -39,6 +40,12 @@ const (
 )
 
 var (
-	Name               = fmt.Sprintf("%s.%s", ResourcePlural, GroupName)
-	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
+	Name                     = fmt.Sprintf("%s.%s", ResourcePlural, GroupName)
+	SchemeGroupVersion       = schema.GroupVersion{Group: GroupName, Version: Version}
+	CustomResourceValidation = &apiextensionsv1.CustomResourceValidation{
+		OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+			Description: "ElasticsearchCluster",
+			Type:        "object",
+		},
+	}
 )

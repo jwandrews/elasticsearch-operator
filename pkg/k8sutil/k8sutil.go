@@ -35,7 +35,6 @@ import (
 	"github.com/sirupsen/logrus"
 	elasticsearchoperator "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator"
 	myspec "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
-	clientset "github.com/upmc-enterprises/elasticsearch-operator/pkg/client/clientset/versioned"
 	genclient "github.com/upmc-enterprises/elasticsearch-operator/pkg/client/clientset/versioned"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -141,7 +140,7 @@ func newKubeClient(kubeCfgFile string) (genclient.Interface, kubernetes.Interfac
 	}
 
 	// Create the kubernetes client
-	clientSet, err := clientset.NewForConfig(Config)
+	clientSet, err := genclient.NewForConfig(Config)
 	if err != nil {
 		panic(err)
 	}
@@ -183,14 +182,9 @@ func (k *K8sutil) CreateKubernetesCustomResourceDefinition() error {
 					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
 						{
 							Name:    elasticsearchoperator.Version,
+							Schema:  elasticsearchoperator.CustomResourceValidation,
 							Storage: true,
 							Served:  true,
-							Schema: &apiextensionsv1.CustomResourceValidation{
-								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-									Description: "ElasticsearchCluster",
-									Type:        "object",
-								},
-							},
 						},
 					},
 					Scope: apiextensionsv1.NamespaceScoped,

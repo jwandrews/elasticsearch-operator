@@ -101,10 +101,8 @@ func (k *K8sutil) UpdateVolumeReclaimPolicy(policy, namespace string, name strin
 	switch policy {
 	case "Delete":
 		policyType = v1.PersistentVolumeReclaimDelete
-		break
 	case "Retain":
 		policyType = v1.PersistentVolumeReclaimRetain
-		break
 	}
 
 	// pvc, err := k.Kclient.CoreV1().PersistentVolumeClaims(namespace).List(metav1.ListOptions{

@@ -260,7 +260,7 @@ func (k *K8sutil) DeleteServices(clusterName, namespace string) error {
 	}
 	logrus.Infof("Deleted service: %s", fullClientServiceName)
 
-	for component, _ := range mgmtServices {
+	for component := range mgmtServices {
 
 		// Check if service exists
 		s, _ := k.Kclient.CoreV1().Services(namespace).Get(k.Context, component, metav1.GetOptions{})
