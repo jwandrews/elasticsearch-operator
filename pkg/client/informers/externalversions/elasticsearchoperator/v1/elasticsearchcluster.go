@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2023 The Kubernetes elasticsearch-operator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	elasticsearchoperatorv1 "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
@@ -61,13 +62,13 @@ func NewFilteredElasticsearchClusterInformer(client versioned.Interface, namespa
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.EnterprisesV1().ElasticsearchClusters(namespace).List(options)
+				return client.EnterprisesV1().ElasticsearchClusters(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.EnterprisesV1().ElasticsearchClusters(namespace).Watch(options)
+				return client.EnterprisesV1().ElasticsearchClusters(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&elasticsearchoperatorv1.ElasticsearchCluster{},

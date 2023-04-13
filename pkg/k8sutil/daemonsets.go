@@ -26,8 +26,8 @@ package k8sutil
 
 import (
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -39,7 +39,7 @@ const (
 // CreateNodeInitDaemonset creates the node init daemonset
 func (k *K8sutil) CreateNodeInitDaemonset() error {
 
-	ds, err := k.Kclient.ExtensionsV1beta1().DaemonSets(k.InitDaemonsetNamespace).Get(esOperatorSysctlName, metav1.GetOptions{})
+	ds, err := k.Kclient.AppsV1().DaemonSets(k.InitDaemonsetNamespace).Get(k.Context, esOperatorSysctlName, metav1.GetOptions{})
 
 	if err != nil && len(ds.Name) == 0 {
 
@@ -48,7 +48,7 @@ func (k *K8sutil) CreateNodeInitDaemonset() error {
 		resourceCPU, _ := resource.ParseQuantity("10m")
 		resourceMemory, _ := resource.ParseQuantity("50Mi")
 
-		daemonset := &v1beta1.DaemonSet{
+		daemonset := &appsv1.DaemonSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: esOperatorSysctlName,
 				Labels: map[string]string{
@@ -56,19 +56,22 @@ func (k *K8sutil) CreateNodeInitDaemonset() error {
 				},
 				Namespace: k.InitDaemonsetNamespace,
 			},
-			Spec: v1beta1.DaemonSetSpec{
-				Template: v1.PodTemplateSpec{
+			Spec: appsv1.DaemonSetSpec{
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{
+					"k8s-app": "elasticsearch-operator",
+				}},
+				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
 							"k8s-app": "elasticsearch-operator",
 						},
 					},
-					Spec: v1.PodSpec{
+					Spec: corev1.PodSpec{
 						NodeSelector: map[string]string{
-							"beta.kubernetes.io/os": "linux",
+							"kubernetes.io/os": "linux",
 						},
-						Containers: []v1.Container{
-							v1.Container{
+						Containers: []corev1.Container{
+							{
 								Name:  "sysctl-conf",
 								Image: k.BusyboxImage,
 								Command: []string{
@@ -76,17 +79,17 @@ func (k *K8sutil) CreateNodeInitDaemonset() error {
 									"-c",
 									"sysctl -w vm.max_map_count=262166 && while true; do sleep 86400; done",
 								},
-								Resources: v1.ResourceRequirements{
-									Limits: v1.ResourceList{
+								Resources: corev1.ResourceRequirements{
+									Limits: corev1.ResourceList{
 										"cpu":    resourceCPU,
 										"memory": resourceMemory,
 									},
-									Requests: v1.ResourceList{
+									Requests: corev1.ResourceList{
 										"cpu":    resourceCPU,
 										"memory": resourceMemory,
 									},
 								},
-								SecurityContext: &v1.SecurityContext{
+								SecurityContext: &corev1.SecurityContext{
 									Privileged: &[]bool{true}[0],
 								},
 							},
@@ -97,7 +100,7 @@ func (k *K8sutil) CreateNodeInitDaemonset() error {
 			},
 		}
 
-		_, err = k.Kclient.ExtensionsV1beta1().DaemonSets(k.InitDaemonsetNamespace).Create(daemonset)
+		_, err = k.Kclient.AppsV1().DaemonSets(k.InitDaemonsetNamespace).Create(k.Context, daemonset, metav1.CreateOptions{})
 
 	} else {
 		logrus.Infof("Daemonset %s/%s already exist, skipping creation ...", ds.Namespace, ds.Name)

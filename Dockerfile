@@ -1,8 +1,9 @@
 FROM openjdk:8-jdk-alpine
-MAINTAINER  Steve Sloka <steve@stevesloka.com>
+LABEL Author="Steve Sloka <steve@stevesloka.com>"
 
+RUN apk update && apk upgrade
 RUN apk add --update ca-certificates openssl && \
-  rm -rf /var/cache/apk/*
+    rm -rf /var/cache/apk/*
 
 RUN mkdir -p /tmp/certs/config
 RUN mkdir -p /tmp/certs/certs

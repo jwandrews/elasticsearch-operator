@@ -38,7 +38,7 @@ func (k *K8sutil) CreateDataService(clusterName, namespace string) error {
 	fullDataServiceName := dataServiceName + "-" + clusterName
 	component := "elasticsearch" + "-" + clusterName
 	// Check if service exists
-	svc, err := k.Kclient.CoreV1().Services(namespace).Get(fullDataServiceName, metav1.GetOptions{})
+	svc, err := k.Kclient.CoreV1().Services(namespace).Get(k.Context, fullDataServiceName, metav1.GetOptions{})
 
 	// Service missing, create
 	if len(svc.Name) == 0 {
@@ -61,7 +61,7 @@ func (k *K8sutil) CreateDataService(clusterName, namespace string) error {
 					"role":      "data",
 				},
 				Ports: []v1.ServicePort{
-					v1.ServicePort{
+					{
 						Name:     "transport",
 						Port:     9300,
 						Protocol: "TCP",
@@ -70,7 +70,7 @@ func (k *K8sutil) CreateDataService(clusterName, namespace string) error {
 			},
 		}
 
-		if _, err := k.Kclient.CoreV1().Services(namespace).Create(dataService); err != nil {
+		if _, err := k.Kclient.CoreV1().Services(namespace).Create(k.Context, dataService, metav1.CreateOptions{}); err != nil {
 			logrus.Error("Could not create data service", err)
 			return err
 		}
@@ -98,7 +98,7 @@ func (k *K8sutil) CreateClientService(clusterName, namespace string, nodePort in
 	fullClientServiceName := k.GetClientServiceName(clusterName)
 	component := fmt.Sprintf("elasticsearch-%s", clusterName)
 	// Check if service exists
-	svc, err := k.Kclient.CoreV1().Services(namespace).Get(fullClientServiceName, metav1.GetOptions{})
+	svc, err := k.Kclient.CoreV1().Services(namespace).Get(k.Context, fullClientServiceName, metav1.GetOptions{})
 
 	// Service missing, create
 	if len(svc.Name) == 0 {
@@ -118,7 +118,7 @@ func (k *K8sutil) CreateClientService(clusterName, namespace string, nodePort in
 					"role":      "client",
 				},
 				Ports: []v1.ServicePort{
-					v1.ServicePort{
+					{
 						Name:     "http",
 						Port:     9200,
 						Protocol: "TCP",
@@ -131,7 +131,7 @@ func (k *K8sutil) CreateClientService(clusterName, namespace string, nodePort in
 			clientSvc.Spec.Ports[0].NodePort = nodePort
 		}
 
-		if _, err := k.Kclient.CoreV1().Services(namespace).Create(clientSvc); err != nil {
+		if _, err := k.Kclient.CoreV1().Services(namespace).Create(k.Context, clientSvc, metav1.CreateOptions{}); err != nil {
 			logrus.Error("Could not create client service", err)
 			return err
 		}
@@ -150,7 +150,7 @@ func (k *K8sutil) CreateDiscoveryService(clusterName, namespace string) error {
 	fullDiscoveryServiceName := fmt.Sprintf("%s-%s", discoveryServiceName, clusterName)
 	component := "elasticsearch" + "-" + clusterName
 	// Check if service exists
-	svc, err := k.Kclient.CoreV1().Services(namespace).Get(fullDiscoveryServiceName, metav1.GetOptions{})
+	svc, err := k.Kclient.CoreV1().Services(namespace).Get(k.Context, fullDiscoveryServiceName, metav1.GetOptions{})
 
 	// Service missing, create
 	if len(svc.Name) == 0 {
@@ -170,7 +170,7 @@ func (k *K8sutil) CreateDiscoveryService(clusterName, namespace string) error {
 					"role":      "master",
 				},
 				Ports: []v1.ServicePort{
-					v1.ServicePort{
+					{
 						Name:     "transport",
 						Port:     9300,
 						Protocol: "TCP",
@@ -179,7 +179,7 @@ func (k *K8sutil) CreateDiscoveryService(clusterName, namespace string) error {
 			},
 		}
 
-		if _, err := k.Kclient.CoreV1().Services(namespace).Create(discoverySvc); err != nil {
+		if _, err := k.Kclient.CoreV1().Services(namespace).Create(k.Context, discoverySvc, metav1.CreateOptions{}); err != nil {
 			logrus.Error("Could not create discovery service! ", err)
 			return err
 		}
@@ -199,7 +199,7 @@ func (k *K8sutil) CreateMgmtService(service string, clusterName, namespace strin
 	serviceName := fmt.Sprintf("%s-%s", service, clusterName)
 
 	// Check if service exists
-	s, err := k.Kclient.CoreV1().Services(namespace).Get(serviceName, metav1.GetOptions{})
+	s, err := k.Kclient.CoreV1().Services(namespace).Get(k.Context, serviceName, metav1.GetOptions{})
 
 	// Service missing, create
 	if len(s.Name) == 0 {
@@ -217,7 +217,7 @@ func (k *K8sutil) CreateMgmtService(service string, clusterName, namespace strin
 					"role": service,
 				},
 				Ports: []v1.ServicePort{
-					v1.ServicePort{
+					{
 						Name:       "http",
 						Port:       80,
 						Protocol:   "TCP",
@@ -227,7 +227,7 @@ func (k *K8sutil) CreateMgmtService(service string, clusterName, namespace strin
 			},
 		}
 
-		if _, err := k.Kclient.CoreV1().Services(namespace).Create(svc); err != nil {
+		if _, err := k.Kclient.CoreV1().Services(namespace).Create(k.Context, svc, metav1.CreateOptions{}); err != nil {
 			logrus.Errorf("Could not create service %v %v! ", serviceName, err)
 			return err
 		}
@@ -243,19 +243,19 @@ func (k *K8sutil) CreateMgmtService(service string, clusterName, namespace strin
 func (k *K8sutil) DeleteServices(clusterName, namespace string) error {
 
 	fullDiscoveryServiceName := fmt.Sprintf("%s-%s", discoveryServiceName, clusterName)
-	if err := k.Kclient.CoreV1().Services(namespace).Delete(fullDiscoveryServiceName, &metav1.DeleteOptions{}); err != nil {
+	if err := k.Kclient.CoreV1().Services(namespace).Delete(k.Context, fullDiscoveryServiceName, metav1.DeleteOptions{}); err != nil {
 		logrus.Error("Could not delete service "+fullDiscoveryServiceName+":", err)
 	}
 	logrus.Infof("Deleted service: %s", fullDiscoveryServiceName)
 
 	fullDataServiceName := dataServiceName + "-" + clusterName
-	if err := k.Kclient.CoreV1().Services(namespace).Delete(fullDataServiceName, &metav1.DeleteOptions{}); err != nil {
+	if err := k.Kclient.CoreV1().Services(namespace).Delete(k.Context, fullDataServiceName, metav1.DeleteOptions{}); err != nil {
 		logrus.Error("Could not delete service "+fullDataServiceName+":", err)
 	}
 	logrus.Infof("Deleted service: %s", fullDataServiceName)
 
 	fullClientServiceName := clientServiceName + "-" + clusterName
-	if err := k.Kclient.CoreV1().Services(namespace).Delete(fullClientServiceName, &metav1.DeleteOptions{}); err != nil {
+	if err := k.Kclient.CoreV1().Services(namespace).Delete(k.Context, fullClientServiceName, metav1.DeleteOptions{}); err != nil {
 		logrus.Error("Could not delete service "+fullClientServiceName+":", err)
 	}
 	logrus.Infof("Deleted service: %s", fullClientServiceName)
@@ -263,13 +263,13 @@ func (k *K8sutil) DeleteServices(clusterName, namespace string) error {
 	for component, _ := range mgmtServices {
 
 		// Check if service exists
-		s, _ := k.Kclient.CoreV1().Services(namespace).Get(component, metav1.GetOptions{})
+		s, _ := k.Kclient.CoreV1().Services(namespace).Get(k.Context, component, metav1.GetOptions{})
 
 		// Service exists, delete
 		if len(s.Name) >= 1 {
 			fullClientServiceName := fmt.Sprintf("%s-%s", component, clusterName)
 
-			if err := k.Kclient.CoreV1().Services(namespace).Delete(fullClientServiceName, &metav1.DeleteOptions{}); err != nil {
+			if err := k.Kclient.CoreV1().Services(namespace).Delete(k.Context, fullClientServiceName, metav1.DeleteOptions{}); err != nil {
 				logrus.Error("Could not delete service "+fullClientServiceName+":", err)
 			}
 			logrus.Infof("Deleted service: %s", fullClientServiceName)

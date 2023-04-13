@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2023 The Kubernetes elasticsearch-operator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	elasticsearchoperatorv1 "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var elasticsearchclustersResource = schema.GroupVersionResource{Group: "enterpri
 var elasticsearchclustersKind = schema.GroupVersionKind{Group: "enterprises.upmc.com", Version: "v1", Kind: "ElasticsearchCluster"}
 
 // Get takes name of the elasticsearchCluster, and returns the corresponding elasticsearchCluster object, and an error if there is any.
-func (c *FakeElasticsearchClusters) Get(name string, options v1.GetOptions) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
+func (c *FakeElasticsearchClusters) Get(ctx context.Context, name string, options v1.GetOptions) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(elasticsearchclustersResource, c.ns, name), &elasticsearchoperatorv1.ElasticsearchCluster{})
 
@@ -50,7 +52,7 @@ func (c *FakeElasticsearchClusters) Get(name string, options v1.GetOptions) (res
 }
 
 // List takes label and field selectors, and returns the list of ElasticsearchClusters that match those selectors.
-func (c *FakeElasticsearchClusters) List(opts v1.ListOptions) (result *elasticsearchoperatorv1.ElasticsearchClusterList, err error) {
+func (c *FakeElasticsearchClusters) List(ctx context.Context, opts v1.ListOptions) (result *elasticsearchoperatorv1.ElasticsearchClusterList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(elasticsearchclustersResource, elasticsearchclustersKind, c.ns, opts), &elasticsearchoperatorv1.ElasticsearchClusterList{})
 
@@ -62,7 +64,7 @@ func (c *FakeElasticsearchClusters) List(opts v1.ListOptions) (result *elasticse
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &elasticsearchoperatorv1.ElasticsearchClusterList{}
+	list := &elasticsearchoperatorv1.ElasticsearchClusterList{ListMeta: obj.(*elasticsearchoperatorv1.ElasticsearchClusterList).ListMeta}
 	for _, item := range obj.(*elasticsearchoperatorv1.ElasticsearchClusterList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
@@ -72,14 +74,14 @@ func (c *FakeElasticsearchClusters) List(opts v1.ListOptions) (result *elasticse
 }
 
 // Watch returns a watch.Interface that watches the requested elasticsearchClusters.
-func (c *FakeElasticsearchClusters) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeElasticsearchClusters) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(elasticsearchclustersResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a elasticsearchCluster and creates it.  Returns the server's representation of the elasticsearchCluster, and an error, if there is any.
-func (c *FakeElasticsearchClusters) Create(elasticsearchCluster *elasticsearchoperatorv1.ElasticsearchCluster) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
+func (c *FakeElasticsearchClusters) Create(ctx context.Context, elasticsearchCluster *elasticsearchoperatorv1.ElasticsearchCluster, opts v1.CreateOptions) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(elasticsearchclustersResource, c.ns, elasticsearchCluster), &elasticsearchoperatorv1.ElasticsearchCluster{})
 
@@ -90,7 +92,7 @@ func (c *FakeElasticsearchClusters) Create(elasticsearchCluster *elasticsearchop
 }
 
 // Update takes the representation of a elasticsearchCluster and updates it. Returns the server's representation of the elasticsearchCluster, and an error, if there is any.
-func (c *FakeElasticsearchClusters) Update(elasticsearchCluster *elasticsearchoperatorv1.ElasticsearchCluster) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
+func (c *FakeElasticsearchClusters) Update(ctx context.Context, elasticsearchCluster *elasticsearchoperatorv1.ElasticsearchCluster, opts v1.UpdateOptions) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(elasticsearchclustersResource, c.ns, elasticsearchCluster), &elasticsearchoperatorv1.ElasticsearchCluster{})
 
@@ -102,7 +104,7 @@ func (c *FakeElasticsearchClusters) Update(elasticsearchCluster *elasticsearchop
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeElasticsearchClusters) UpdateStatus(elasticsearchCluster *elasticsearchoperatorv1.ElasticsearchCluster) (*elasticsearchoperatorv1.ElasticsearchCluster, error) {
+func (c *FakeElasticsearchClusters) UpdateStatus(ctx context.Context, elasticsearchCluster *elasticsearchoperatorv1.ElasticsearchCluster, opts v1.UpdateOptions) (*elasticsearchoperatorv1.ElasticsearchCluster, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(elasticsearchclustersResource, "status", c.ns, elasticsearchCluster), &elasticsearchoperatorv1.ElasticsearchCluster{})
 
@@ -113,7 +115,7 @@ func (c *FakeElasticsearchClusters) UpdateStatus(elasticsearchCluster *elasticse
 }
 
 // Delete takes name of the elasticsearchCluster and deletes it. Returns an error if one occurs.
-func (c *FakeElasticsearchClusters) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeElasticsearchClusters) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(elasticsearchclustersResource, c.ns, name), &elasticsearchoperatorv1.ElasticsearchCluster{})
 
@@ -121,17 +123,17 @@ func (c *FakeElasticsearchClusters) Delete(name string, options *v1.DeleteOption
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeElasticsearchClusters) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(elasticsearchclustersResource, c.ns, listOptions)
+func (c *FakeElasticsearchClusters) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(elasticsearchclustersResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &elasticsearchoperatorv1.ElasticsearchClusterList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched elasticsearchCluster.
-func (c *FakeElasticsearchClusters) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
+func (c *FakeElasticsearchClusters) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *elasticsearchoperatorv1.ElasticsearchCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(elasticsearchclustersResource, c.ns, name, data, subresources...), &elasticsearchoperatorv1.ElasticsearchCluster{})
+		Invokes(testing.NewPatchSubresourceAction(elasticsearchclustersResource, c.ns, name, pt, data, subresources...), &elasticsearchoperatorv1.ElasticsearchCluster{})
 
 	if obj == nil {
 		return nil, err

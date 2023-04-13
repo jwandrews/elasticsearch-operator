@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2023 The Kubernetes elasticsearch-operator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,8 +26,10 @@ import (
 )
 
 // ElasticsearchClusterLister helps list ElasticsearchClusters.
+// All objects returned here must be treated as read-only.
 type ElasticsearchClusterLister interface {
 	// List lists all ElasticsearchClusters in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ElasticsearchCluster, err error)
 	// ElasticsearchClusters returns an object that can list and get ElasticsearchClusters.
 	ElasticsearchClusters(namespace string) ElasticsearchClusterNamespaceLister
@@ -58,10 +60,13 @@ func (s *elasticsearchClusterLister) ElasticsearchClusters(namespace string) Ela
 }
 
 // ElasticsearchClusterNamespaceLister helps list and get ElasticsearchClusters.
+// All objects returned here must be treated as read-only.
 type ElasticsearchClusterNamespaceLister interface {
 	// List lists all ElasticsearchClusters in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ElasticsearchCluster, err error)
 	// Get retrieves the ElasticsearchCluster from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.ElasticsearchCluster, error)
 	ElasticsearchClusterNamespaceListerExpansion
 }

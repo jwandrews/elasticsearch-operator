@@ -29,8 +29,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	myspec "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
-	"k8s.io/api/apps/v1beta1"
-	v1 "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -48,7 +48,7 @@ func (k *K8sutil) DeleteDeployment(clusterName, namespace, deploymentType string
 	labelSelector := fmt.Sprintf("component=elasticsearch-%s,role=%s", clusterName, deploymentType)
 
 	// Get list of deployments
-	deployments, err := k.Kclient.ExtensionsV1beta1().Deployments(namespace).List(metav1.ListOptions{LabelSelector: labelSelector})
+	deployments, err := k.Kclient.AppsV1().Deployments(namespace).List(k.Context, metav1.ListOptions{LabelSelector: labelSelector})
 
 	if err != nil {
 		logrus.Error("Could not get deployments! ", err)
@@ -57,7 +57,7 @@ func (k *K8sutil) DeleteDeployment(clusterName, namespace, deploymentType string
 	for _, deployment := range deployments.Items {
 		//Scale the deployment down to zero (https://github.com/kubernetes/client-go/issues/91)
 		deployment.Spec.Replicas = new(int32)
-		deployment, err := k.Kclient.ExtensionsV1beta1().Deployments(namespace).Update(&deployment)
+		deployment, err := k.Kclient.AppsV1().Deployments(namespace).Update(k.Context, &deployment, metav1.UpdateOptions{})
 
 		if err != nil {
 			logrus.Errorf("Could not scale deployment: %s ", deployment.Name)
@@ -65,7 +65,7 @@ func (k *K8sutil) DeleteDeployment(clusterName, namespace, deploymentType string
 			logrus.Infof("Scaled deployment: %s to zero", deployment.Name)
 		}
 
-		err = k.Kclient.ExtensionsV1beta1().Deployments(namespace).Delete(deployment.Name, &metav1.DeleteOptions{})
+		err = k.Kclient.AppsV1().Deployments(namespace).Delete(k.Context, deployment.Name, metav1.DeleteOptions{})
 
 		if err != nil {
 			logrus.Errorf("Could not delete deployments: %s ", deployment.Name)
@@ -75,14 +75,14 @@ func (k *K8sutil) DeleteDeployment(clusterName, namespace, deploymentType string
 	}
 
 	// Get list of ReplicaSets
-	replicaSets, err := k.Kclient.ExtensionsV1beta1().ReplicaSets(namespace).List(metav1.ListOptions{LabelSelector: labelSelector})
+	replicaSets, err := k.Kclient.AppsV1().ReplicaSets(namespace).List(k.Context, metav1.ListOptions{LabelSelector: labelSelector})
 
 	if err != nil {
 		logrus.Error("Could not get replica sets! ", err)
 	}
 
 	for _, replicaSet := range replicaSets.Items {
-		err := k.Kclient.ExtensionsV1beta1().ReplicaSets(namespace).Delete(replicaSet.Name, &metav1.DeleteOptions{})
+		err := k.Kclient.AppsV1().ReplicaSets(namespace).Delete(k.Context, replicaSet.Name, metav1.DeleteOptions{})
 
 		if err != nil {
 			logrus.Errorf("Could not delete replica sets: %s ", replicaSet.Name)
@@ -96,7 +96,7 @@ func (k *K8sutil) DeleteDeployment(clusterName, namespace, deploymentType string
 
 // CreateClientDeployment creates the client deployment
 func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, javaOptions, clientJavaOptions string,
-	resources myspec.Resources, imagePullSecrets []myspec.ImagePullSecrets, imagePullPolicy, serviceAccountName, clusterName, statsdEndpoint, networkHost, namespace string, useSSL *bool, affinity v1.Affinity, annotations map[string]string) error {
+	resources myspec.Resources, imagePullSecrets []myspec.ImagePullSecrets, imagePullPolicy, serviceAccountName, clusterName, statsdEndpoint, networkHost, namespace string, useSSL *bool, affinity corev1.Affinity, annotations map[string]string) error {
 
 	component := fmt.Sprintf("elasticsearch-%s", clusterName)
 	discoveryServiceNameCluster := fmt.Sprintf("%s-%s", discoveryServiceName, clusterName)
@@ -106,7 +106,7 @@ func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, java
 	role := "client"
 
 	// Check if deployment exists
-	deployment, err := k.Kclient.ExtensionsV1beta1().Deployments(namespace).Get(deploymentName, metav1.GetOptions{})
+	deployment, err := k.Kclient.AppsV1().Deployments(namespace).Get(k.Context, deploymentName, metav1.GetOptions{})
 
 	enableSSL := "false"
 	if useSSL != nil && *useSSL {
@@ -132,23 +132,23 @@ func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, java
 		limitMemory, _ := resource.ParseQuantity(resources.Limits.Memory)
 		requestCPU, _ := resource.ParseQuantity(resources.Requests.CPU)
 		requestMemory, _ := resource.ParseQuantity(resources.Requests.Memory)
-		scheme := v1.URISchemeHTTP
+		scheme := corev1.URISchemeHTTP
 		if useSSL != nil && *useSSL {
-			scheme = v1.URISchemeHTTPS
+			scheme = corev1.URISchemeHTTPS
 		}
-		probe := &v1.Probe{
+		probe := &corev1.Probe{
 			TimeoutSeconds:      30,
 			InitialDelaySeconds: 10,
 			FailureThreshold:    15,
-			Handler: v1.Handler{
-				HTTPGet: &v1.HTTPGetAction{
+			Handler: corev1.Handler{
+				HTTPGet: &corev1.HTTPGetAction{
 					Port:   intstr.FromInt(9200),
 					Path:   clusterHealthURL,
 					Scheme: scheme,
 				},
 			},
 		}
-		deployment := &v1beta1.Deployment{
+		deployment := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: deploymentName,
 				Labels: map[string]string{
@@ -158,9 +158,9 @@ func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, java
 					"cluster":   clusterName,
 				},
 			},
-			Spec: v1beta1.DeploymentSpec{
+			Spec: appsv1.DeploymentSpec{
 				Replicas: replicas,
-				Template: v1.PodTemplateSpec{
+				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
 							"component": component,
@@ -170,118 +170,118 @@ func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, java
 						},
 						Annotations: annotations,
 					},
-					Spec: v1.PodSpec{
+					Spec: corev1.PodSpec{
 						Affinity: &affinity,
-						Containers: []v1.Container{
-							v1.Container{
+						Containers: []corev1.Container{
+							{
 								Name: deploymentName,
-								SecurityContext: &v1.SecurityContext{
+								SecurityContext: &corev1.SecurityContext{
 									Privileged: &[]bool{true}[0],
-									Capabilities: &v1.Capabilities{
-										Add: []v1.Capability{
+									Capabilities: &corev1.Capabilities{
+										Add: []corev1.Capability{
 											"IPC_LOCK",
 										},
 									},
 								},
 								Image:           baseImage,
-								ImagePullPolicy: v1.PullPolicy(imagePullPolicy),
-								Env: []v1.EnvVar{
-									v1.EnvVar{
+								ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
+								Env: []corev1.EnvVar{
+									{
 										Name: "NAMESPACE",
-										ValueFrom: &v1.EnvVarSource{
-											FieldRef: &v1.ObjectFieldSelector{
+										ValueFrom: &corev1.EnvVarSource{
+											FieldRef: &corev1.ObjectFieldSelector{
 												FieldPath: "metadata.namespace",
 											},
 										},
 									},
-									v1.EnvVar{
+									{
 										Name:  "CLUSTER_NAME",
 										Value: clusterName,
 									},
-									v1.EnvVar{
+									{
 										Name:  "NODE_MASTER",
 										Value: isNodeMaster,
 									},
-									v1.EnvVar{
+									{
 										Name:  "NODE_DATA",
 										Value: "false",
 									},
-									v1.EnvVar{
+									{
 										Name:  "HTTP_ENABLE",
 										Value: "true",
 									},
-									v1.EnvVar{
+									{
 										Name:  "SEARCHGUARD_SSL_TRANSPORT_ENABLED",
 										Value: enableSSL,
 									},
-									v1.EnvVar{
+									{
 										Name:  "SEARCHGUARD_SSL_HTTP_ENABLED",
 										Value: enableSSL,
 									},
-									v1.EnvVar{
+									{
 										Name:  "ES_JAVA_OPTS",
 										Value: esJavaOps,
 									},
-									v1.EnvVar{
+									{
 										Name:  "STATSD_HOST",
 										Value: statsdEndpoint,
 									},
-									v1.EnvVar{
+									{
 										Name:  "DISCOVERY_SERVICE",
 										Value: discoveryServiceNameCluster,
 									},
-									v1.EnvVar{
+									{
 										Name:  "NETWORK_HOST",
 										Value: networkHost,
 									},
 								},
-								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+								Ports: []corev1.ContainerPort{
+									{
 										Name:          "transport",
 										ContainerPort: 9300,
-										Protocol:      v1.ProtocolTCP,
+										Protocol:      corev1.ProtocolTCP,
 									},
-									v1.ContainerPort{
+									{
 										Name:          "http",
 										ContainerPort: 9200,
-										Protocol:      v1.ProtocolTCP,
+										Protocol:      corev1.ProtocolTCP,
 									},
 								},
 								ReadinessProbe: probe,
 								LivenessProbe:  probe,
-								VolumeMounts: []v1.VolumeMount{
-									v1.VolumeMount{
+								VolumeMounts: []corev1.VolumeMount{
+									{
 										Name:      "storage",
 										MountPath: "/data",
 									},
-									v1.VolumeMount{
+									{
 										Name:      clusterSecretName,
 										MountPath: elasticsearchCertspath,
 									},
 								},
-								Resources: v1.ResourceRequirements{
-									Limits: v1.ResourceList{
+								Resources: corev1.ResourceRequirements{
+									Limits: corev1.ResourceList{
 										"cpu":    limitCPU,
 										"memory": limitMemory,
 									},
-									Requests: v1.ResourceList{
+									Requests: corev1.ResourceList{
 										"cpu":    requestCPU,
 										"memory": requestMemory,
 									},
 								},
 							},
 						},
-						Volumes: []v1.Volume{
-							v1.Volume{
+						Volumes: []corev1.Volume{
+							{
 								Name: "storage",
-								VolumeSource: v1.VolumeSource{
-									EmptyDir: &v1.EmptyDirVolumeSource{},
+								VolumeSource: corev1.VolumeSource{
+									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},
 							},
-							v1.Volume{
+							{
 								Name: clusterSecretName,
-								VolumeSource: v1.VolumeSource{
-									Secret: &v1.SecretVolumeSource{
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
 										SecretName: clusterSecretName,
 									},
 								},
@@ -326,7 +326,7 @@ func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, java
 			deployment.Spec.Template.Spec.ServiceAccountName = serviceAccountName
 		}
 
-		_, err := k.Kclient.AppsV1beta1().Deployments(namespace).Create(deployment)
+		_, err := k.Kclient.AppsV1().Deployments(namespace).Create(k.Context, deployment, metav1.CreateOptions{})
 
 		if err != nil {
 			logrus.Error("Could not create client deployment: ", err)
@@ -342,7 +342,7 @@ func (k *K8sutil) CreateClientDeployment(baseImage string, replicas *int32, java
 		if deployment.Spec.Replicas != replicas {
 			deployment.Spec.Replicas = replicas
 
-			if _, err := k.Kclient.ExtensionsV1beta1().Deployments(namespace).Update(deployment); err != nil {
+			if _, err := k.Kclient.AppsV1().Deployments(namespace).Update(k.Context, deployment, metav1.UpdateOptions{}); err != nil {
 				logrus.Error("Could not scale deployment: ", err)
 				return err
 			}
@@ -362,20 +362,20 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 	deploymentName := fmt.Sprintf("%s-%s", kibanaDeploymentName, clusterName)
 
 	enableSSL := "true"
-	scheme := v1.URISchemeHTTPS
+	scheme := corev1.URISchemeHTTPS
 	if useSSL != nil && !*useSSL {
 		enableSSL = "false"
-		scheme = v1.URISchemeHTTP
+		scheme = corev1.URISchemeHTTP
 	}
 
 	// Check if deployment exists
-	deployment, err := k.Kclient.ExtensionsV1beta1().Deployments(namespace).Get(deploymentName, metav1.GetOptions{})
-	probe := &v1.Probe{
+	deployment, err := k.Kclient.AppsV1().Deployments(namespace).Get(k.Context, deploymentName, metav1.GetOptions{})
+	probe := &corev1.Probe{
 		TimeoutSeconds:      30,
 		InitialDelaySeconds: 1,
 		FailureThreshold:    10,
-		Handler: v1.Handler{
-			HTTPGet: &v1.HTTPGetAction{
+		Handler: corev1.Handler{
+			HTTPGet: &corev1.HTTPGetAction{
 				Port:   intstr.FromInt(5601),
 				Path:   "/", //TODO since kibana doesn't have a healthcheck url, the root is enough
 				Scheme: scheme,
@@ -385,7 +385,7 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 	if len(deployment.Name) == 0 {
 		logrus.Infof("%s not found, creating...", deploymentName)
 
-		deployment := &v1beta1.Deployment{
+		deployment := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: deploymentName,
 				Labels: map[string]string{
@@ -394,9 +394,9 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 					"name":      deploymentName,
 				},
 			},
-			Spec: v1beta1.DeploymentSpec{
+			Spec: appsv1.DeploymentSpec{
 				Replicas: &replicaCount,
-				Template: v1.PodTemplateSpec{
+				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
 							"component": component,
@@ -404,27 +404,27 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 							"name":      deploymentName,
 						},
 					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							v1.Container{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							corev1.Container{
 								Name:            deploymentName,
 								Image:           baseImage,
-								ImagePullPolicy: v1.PullPolicy(imagePullPolicy),
-								Env: []v1.EnvVar{
-									v1.EnvVar{
+								ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
+								Env: []corev1.EnvVar{
+									corev1.EnvVar{
 										Name:  "ELASTICSEARCH_URL",
 										Value: GetESURL(component, useSSL),
 									},
-									v1.EnvVar{
+									corev1.EnvVar{
 										Name:  "NODE_DATA",
 										Value: "false",
 									},
 								},
-								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+								Ports: []corev1.ContainerPort{
+									corev1.ContainerPort{
 										Name:          "http",
 										ContainerPort: 5601,
-										Protocol:      v1.ProtocolTCP,
+										Protocol:      corev1.ProtocolTCP,
 									},
 								},
 								LivenessProbe:  probe,
@@ -441,35 +441,35 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 			// SSL config
 
 			deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env,
-				v1.EnvVar{
+				corev1.EnvVar{
 					Name:  "ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES",
 					Value: fmt.Sprintf("%s/ca.pem", elasticsearchCertspath),
 				},
-				v1.EnvVar{
+				corev1.EnvVar{
 					Name:  "SERVER_SSL_ENABLED",
 					Value: enableSSL,
 				},
-				v1.EnvVar{
+				corev1.EnvVar{
 					Name:  "SERVER_SSL_KEY",
 					Value: fmt.Sprintf("%s/kibana-key.pem", elasticsearchCertspath),
 				},
-				v1.EnvVar{
+				corev1.EnvVar{
 					Name:  "SERVER_SSL_CERTIFICATE",
 					Value: fmt.Sprintf("%s/kibana.pem", elasticsearchCertspath),
 				},
 			)
 
 			// Certs volume
-			deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, v1.Volume{
+			deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, corev1.Volume{
 				Name: fmt.Sprintf("%s-%s", secretName, clusterName),
-				VolumeSource: v1.VolumeSource{
-					Secret: &v1.SecretVolumeSource{
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
 						SecretName: fmt.Sprintf("%s-%s", secretName, clusterName),
 					},
 				},
 			})
 			// Mount certs
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
+			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 				Name:      fmt.Sprintf("%s-%s", secretName, clusterName),
 				MountPath: elasticsearchCertspath,
 			})
@@ -479,7 +479,7 @@ func (k *K8sutil) CreateKibanaDeployment(baseImage, clusterName, namespace strin
 			deployment.Spec.Template.Spec.ServiceAccountName = serviceAccountName
 		}
 
-		_, err := k.Kclient.AppsV1beta1().Deployments(namespace).Create(deployment)
+		_, err := k.Kclient.AppsV1().Deployments(namespace).Create(k.Context, deployment, metav1.CreateOptions{})
 
 		if err != nil {
 			logrus.Error("Could not create kibana deployment: ", err)
@@ -502,23 +502,23 @@ func (k *K8sutil) CreateCerebroDeployment(baseImage, clusterName, namespace, cer
 	deploymentName := fmt.Sprintf("%s-%s", cerebroDeploymentName, clusterName)
 
 	// Check if deployment exists
-	deployment, err := k.Kclient.AppsV1beta1().Deployments(namespace).Get(deploymentName, metav1.GetOptions{})
-	probe := &v1.Probe{
+	deployment, err := k.Kclient.AppsV1().Deployments(namespace).Get(k.Context, deploymentName, metav1.GetOptions{})
+	probe := &corev1.Probe{
 		TimeoutSeconds:      30,
 		InitialDelaySeconds: 1,
 		FailureThreshold:    10,
-		Handler: v1.Handler{
-			HTTPGet: &v1.HTTPGetAction{
+		Handler: corev1.Handler{
+			HTTPGet: &corev1.HTTPGetAction{
 				Port:   intstr.FromInt(9000),
 				Path:   "/#/connect", //TODO since cerebro doesn't have a healthcheck url, this path is enough
-				Scheme: v1.URISchemeHTTP,
+				Scheme: corev1.URISchemeHTTP,
 			},
 		},
 	}
 	if len(deployment.Name) == 0 {
 		logrus.Infof("Deployment %s not found, creating...", deploymentName)
 
-		deployment := &v1beta1.Deployment{
+		deployment := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: deploymentName,
 				Labels: map[string]string{
@@ -527,9 +527,9 @@ func (k *K8sutil) CreateCerebroDeployment(baseImage, clusterName, namespace, cer
 					"name":      deploymentName,
 				},
 			},
-			Spec: v1beta1.DeploymentSpec{
+			Spec: appsv1.DeploymentSpec{
 				Replicas: &replicaCount,
-				Template: v1.PodTemplateSpec{
+				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
 							"component": component,
@@ -537,39 +537,39 @@ func (k *K8sutil) CreateCerebroDeployment(baseImage, clusterName, namespace, cer
 							"name":      deploymentName,
 						},
 					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
 								Name:            deploymentName,
 								Image:           baseImage,
-								ImagePullPolicy: v1.PullPolicy(imagePullPolicy),
+								ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
 								Command: []string{
 									"bin/cerebro",
 									"-Dconfig.file=/usr/local/cerebro/cfg/application.conf",
 								},
-								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+								Ports: []corev1.ContainerPort{
+									{
 										Name:          "http",
 										ContainerPort: 9000,
-										Protocol:      v1.ProtocolTCP,
+										Protocol:      corev1.ProtocolTCP,
 									},
 								},
 								ReadinessProbe: probe,
 								LivenessProbe:  probe,
-								VolumeMounts: []v1.VolumeMount{
-									v1.VolumeMount{
+								VolumeMounts: []corev1.VolumeMount{
+									{
 										Name:      cert,
 										MountPath: "/usr/local/cerebro/cfg",
 									},
 								},
 							},
 						},
-						Volumes: []v1.Volume{
-							v1.Volume{
+						Volumes: []corev1.Volume{
+							{
 								Name: cert,
-								VolumeSource: v1.VolumeSource{
-									ConfigMap: &v1.ConfigMapVolumeSource{
-										LocalObjectReference: v1.LocalObjectReference{
+								VolumeSource: corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{
+										LocalObjectReference: corev1.LocalObjectReference{
 											Name: cert,
 										},
 									},
@@ -585,10 +585,10 @@ func (k *K8sutil) CreateCerebroDeployment(baseImage, clusterName, namespace, cer
 		if *useSSL {
 			// Certs volume
 			deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes,
-				v1.Volume{
+				corev1.Volume{
 					Name: fmt.Sprintf("%s-%s", secretName, clusterName),
-					VolumeSource: v1.VolumeSource{
-						Secret: &v1.SecretVolumeSource{
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
 							SecretName: fmt.Sprintf("%s-%s", secretName, clusterName),
 						},
 					},
@@ -596,7 +596,7 @@ func (k *K8sutil) CreateCerebroDeployment(baseImage, clusterName, namespace, cer
 			)
 			// Mount certs
 			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-				v1.VolumeMount{
+				corev1.VolumeMount{
 					Name:      fmt.Sprintf("%s-%s", secretName, clusterName),
 					MountPath: elasticsearchCertspath,
 				},
@@ -607,7 +607,7 @@ func (k *K8sutil) CreateCerebroDeployment(baseImage, clusterName, namespace, cer
 			deployment.Spec.Template.Spec.ServiceAccountName = serviceAccountName
 		}
 
-		if _, err := k.Kclient.AppsV1beta1().Deployments(namespace).Create(deployment); err != nil {
+		if _, err := k.Kclient.AppsV1().Deployments(namespace).Create(k.Context, deployment, metav1.CreateOptions{}); err != nil {
 			logrus.Error("Could not create cerebro deployment: ", err)
 			return err
 		}

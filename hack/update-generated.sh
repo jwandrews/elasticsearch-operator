@@ -18,12 +18,24 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-HACK_DIR=$(dirname "${BASH_SOURCE}")
-REPO_ROOT=${HACK_DIR}/..
+SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
 
-${REPO_ROOT}/vendor/k8s.io/code-generator/generate-groups.sh \
+${CODEGEN_PKG}/generate-internal-groups.sh \
+  all \
+  github.com/upmc-enterprises/elasticsearch-operator/pkg/client \
+  github.com/upmc-enterprises/elasticsearch-operator/pkg/apis \
+  github.com/upmc-enterprises/elasticsearch-operator/apis \
+  elasticsearchoperator:v1  \
+  --output-base "${SCRIPT_ROOT}/gen/internal" \
+  --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
+  $@
+
+${CODEGEN_PKG}/generate-groups.sh \
   all \
   github.com/upmc-enterprises/elasticsearch-operator/pkg/client \
   github.com/upmc-enterprises/elasticsearch-operator/pkg/apis \
   elasticsearchoperator:v1  \
+  --output-base "${SCRIPT_ROOT}/gen/groups" \
+  --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
   $@

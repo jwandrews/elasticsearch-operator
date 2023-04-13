@@ -35,7 +35,7 @@ import (
 	"github.com/sirupsen/logrus"
 	myspec "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
 	"github.com/upmc-enterprises/elasticsearch-operator/pkg/k8sutil"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -143,7 +143,7 @@ func (p *Processor) refreshClusters() error {
 	p.clusters = make(map[string]Cluster)
 
 	// Get existing clusters
-	currentClusters, err := p.k8sclient.CrdClient.EnterprisesV1().ElasticsearchClusters(v1.NamespaceAll).List(metav1.ListOptions{})
+	currentClusters, err := p.k8sclient.CrdClient.EnterprisesV1().ElasticsearchClusters(corev1.NamespaceAll).List(p.k8sclient.Context, metav1.ListOptions{})
 
 	if err != nil {
 		logrus.Error("Could not get list of clusters: ", err)
@@ -161,7 +161,7 @@ func (p *Processor) refreshClusters() error {
 					DataNodeReplicas:    cluster.Spec.DataNodeReplicas,
 					Zones:               cluster.Spec.Zones,
 					DataDiskSize:        cluster.Spec.DataDiskSize,
-                                        MasterDiskSize:      cluster.Spec.MasterDiskSize,
+					MasterDiskSize:      cluster.Spec.MasterDiskSize,
 					JavaOptions:         cluster.Spec.JavaOptions,
 					ClientJavaOptions:   cluster.Spec.ClientJavaOptions,
 					DataJavaOptions:     cluster.Spec.DataJavaOptions,
@@ -267,7 +267,7 @@ func (p *Processor) processElasticSearchClusterEvent(c *myspec.ElasticsearchClus
 	return nil
 }
 
-func (p *Processor) processPodEvent(c *v1.Pod) error {
+func (p *Processor) processPodEvent(c *corev1.Pod) error {
 	processorLock.Lock()
 	defer processorLock.Unlock()
 
@@ -281,7 +281,7 @@ func (p *Processor) processPodEvent(c *v1.Pod) error {
 	return nil
 }
 
-func (p *Processor) processDataPodEvent(c *v1.Pod) error {
+func (p *Processor) processDataPodEvent(c *corev1.Pod) error {
 	// Set the policy to retain
 	name := c.Labels["component"]
 	if len(name) > 14 && name[:14] == "elasticsearch-" {
@@ -291,7 +291,7 @@ func (p *Processor) processDataPodEvent(c *v1.Pod) error {
 	return nil
 }
 
-func (p *Processor) processMasterPodEvent(c *v1.Pod) error {
+func (p *Processor) processMasterPodEvent(c *corev1.Pod) error {
 	name := c.Labels["component"]
 	if len(name) > 14 && name[:14] == "elasticsearch-" {
 		name = name[14:]
@@ -303,7 +303,7 @@ func (p *Processor) processMasterPodEvent(c *v1.Pod) error {
 		readyMasterPods := 0
 		for _, pod := range m.Items {
 			for _, cond := range pod.Status.Conditions {
-				if cond.Type == v1.PodReady && cond.Status == v1.ConditionTrue {
+				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
 					readyMasterPods++
 				}
 			}

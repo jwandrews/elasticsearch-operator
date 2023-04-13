@@ -25,6 +25,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -87,7 +88,7 @@ func Main() int {
 	logrus.Infof("   baseImage: %s", baseImage)
 
 	// Init
-	k8sclient, err := k8sutil.New(kubeCfgFile, masterHost, enableInitDaemonset, initDaemonsetNamespace, busyboxImage)
+	k8sclient, err := k8sutil.New(kubeCfgFile, masterHost, enableInitDaemonset, initDaemonsetNamespace, busyboxImage, context.Background())
 	if err != nil {
 		logrus.Error("Could not init k8sclient! ", err)
 		return 1

@@ -25,11 +25,12 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 package v1
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // +genclient
+// +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ElasticsearchCluster defines the cluster
@@ -90,9 +91,9 @@ type ClusterSpec struct {
 	// to the data nodes in the ES cluster
 	DataDiskSize string `json:"data-volume-size"`
 
-        // MasterDiskSize specifies how large the persistent volume should be attached
-        // to the master nodes in the ES cluster
-        MasterDiskSize string `json:"master-volume-size"`
+	// MasterDiskSize specifies how large the persistent volume should be attached
+	// to the master nodes in the ES cluster
+	MasterDiskSize string `json:"master-volume-size"`
 
 	// ElasticSearchImage specifies the docker image to use (optional)
 	ElasticSearchImage string `json:"elastic-search-image"`

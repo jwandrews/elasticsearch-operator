@@ -26,7 +26,7 @@ package k8sutil
 
 import (
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,7 +37,7 @@ func (k *K8sutil) CreateStorageClass(zone, storageClassProvisioner, storageType 
 
 	component := "elasticsearch" + "-" + clusterName
 	// Check if storage class exists
-	storageClass, err := k.Kclient.StorageV1beta1().StorageClasses().Get(zone, metav1.GetOptions{})
+	storageClass, err := k.Kclient.StorageV1().StorageClasses().Get(k.Context, zone, metav1.GetOptions{})
 
 	// Default encryption to true
 	if useEncryption == "" {
@@ -66,7 +66,7 @@ func (k *K8sutil) CreateStorageClass(zone, storageClassProvisioner, storageType 
 			class.Parameters["zone"] = zone
 		}
 
-		_, err := k.Kclient.Storage().StorageClasses().Create(class)
+		_, err := k.Kclient.StorageV1().StorageClasses().Create(k.Context, class, metav1.CreateOptions{})
 
 		if err != nil {
 			logrus.Error("Could not create storage class: ", err)
@@ -83,7 +83,7 @@ func (k *K8sutil) CreateStorageClass(zone, storageClassProvisioner, storageType 
 // DeleteStorageClasses removes storage classes tied to the operator
 func (k *K8sutil) DeleteStorageClasses(clusterName string) error {
 	component := "elasticsearch" + "-" + clusterName
-	if err := k.Kclient.StorageV1beta1().StorageClasses().DeleteCollection(&metav1.DeleteOptions{},
+	if err := k.Kclient.StorageV1().StorageClasses().DeleteCollection(k.Context, metav1.DeleteOptions{},
 		metav1.ListOptions{LabelSelector: component}); err != nil {
 		logrus.Error("Could not delete storageclasses: ", err)
 	}
@@ -110,7 +110,7 @@ func (k *K8sutil) UpdateVolumeReclaimPolicy(policy, namespace string, name strin
 	// pvc, err := k.Kclient.CoreV1().PersistentVolumeClaims(namespace).List(metav1.ListOptions{
 	// 	LabelSelector: "component=elasticsearch-example-es-cluster",
 	// })
-	pvc, err := k.Kclient.CoreV1().PersistentVolumeClaims(namespace).List(metav1.ListOptions{
+	pvc, err := k.Kclient.CoreV1().PersistentVolumeClaims(namespace).List(k.Context, metav1.ListOptions{
 		LabelSelector: "component=elasticsearch-" + name,
 	})
 
@@ -119,7 +119,7 @@ func (k *K8sutil) UpdateVolumeReclaimPolicy(policy, namespace string, name strin
 	}
 
 	for _, v := range pvc.Items {
-		pv, err := k.Kclient.CoreV1().PersistentVolumes().Get(v.Spec.VolumeName, metav1.GetOptions{})
+		pv, err := k.Kclient.CoreV1().PersistentVolumes().Get(k.Context, v.Spec.VolumeName, metav1.GetOptions{})
 
 		if err != nil {
 			continue
@@ -128,7 +128,7 @@ func (k *K8sutil) UpdateVolumeReclaimPolicy(policy, namespace string, name strin
 		// Set the policy
 		pv.Spec.PersistentVolumeReclaimPolicy = policyType
 
-		_, err = k.Kclient.CoreV1().PersistentVolumes().Update(pv)
+		_, err = k.Kclient.CoreV1().PersistentVolumes().Update(k.Context, pv, metav1.UpdateOptions{})
 
 		if err != nil {
 			logrus.Error("Could not update pv! ", err)

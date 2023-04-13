@@ -28,21 +28,21 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CreateConfigMap creates a new configMap
 func (k *K8sutil) CreateConfigMap(namespace string, name string, data map[string]string) error {
 
-	cf := &v1.ConfigMap{
+	cf := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Data: data,
 	}
 
-	if _, err := k.Kclient.CoreV1().ConfigMaps(namespace).Create(cf); err != nil {
+	if _, err := k.Kclient.CoreV1().ConfigMaps(namespace).Create(k.Context, cf, metav1.CreateOptions{}); err != nil {
 		logrus.Error(fmt.Sprintf("Could not create configmap %s:", name), err)
 		return err
 	}
@@ -54,7 +54,7 @@ func (k *K8sutil) CreateConfigMap(namespace string, name string, data map[string
 // ConfigmapExists returns true if configmap exists
 func (k *K8sutil) ConfigmapExists(namespace, name string) bool {
 	// Check if configmaps exists
-	cf, err := k.Kclient.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+	cf, err := k.Kclient.CoreV1().ConfigMaps(namespace).Get(k.Context, name, metav1.GetOptions{})
 
 	if err != nil {
 		return false
@@ -70,14 +70,14 @@ func (k *K8sutil) ConfigmapExists(namespace, name string) bool {
 // UpdateConfigMap update a existent configmap
 func (k *K8sutil) UpdateConfigMap(namespace string, name string, data map[string]string) error {
 
-	cf := &v1.ConfigMap{
+	cf := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Data: data,
 	}
 
-	if _, err := k.Kclient.CoreV1().ConfigMaps(namespace).Update(cf); err != nil {
+	if _, err := k.Kclient.CoreV1().ConfigMaps(namespace).Update(k.Context, cf, metav1.UpdateOptions{}); err != nil {
 		logrus.Error(fmt.Sprintf("Could not update configmap %s:", name), err)
 		return err
 	}

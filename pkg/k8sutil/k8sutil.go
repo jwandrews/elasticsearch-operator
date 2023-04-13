@@ -25,6 +25,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 package k8sutil
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -36,9 +37,9 @@ import (
 	myspec "github.com/upmc-enterprises/elasticsearch-operator/pkg/apis/elasticsearchoperator/v1"
 	clientset "github.com/upmc-enterprises/elasticsearch-operator/pkg/client/clientset/versioned"
 	genclient "github.com/upmc-enterprises/elasticsearch-operator/pkg/client/clientset/versioned"
-	apps "k8s.io/api/apps/v1beta2"
-	v1 "k8s.io/api/core/v1"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -80,6 +81,7 @@ var (
 
 // K8sutil defines the kube object
 type K8sutil struct {
+	Context                context.Context
 	Config                 *rest.Config
 	CrdClient              genclient.Interface
 	Kclient                kubernetes.Interface
@@ -92,7 +94,7 @@ type K8sutil struct {
 }
 
 // New creates a new instance of k8sutil
-func New(kubeCfgFile, masterHost string, enableInitDaemonset bool, initDaemonsetNamespace, busyboxImage string) (*K8sutil, error) {
+func New(kubeCfgFile, masterHost string, enableInitDaemonset bool, initDaemonsetNamespace, busyboxImage string, ctx context.Context) (*K8sutil, error) {
 
 	crdClient, kubeClient, kubeExt, k8sVersion, err := newKubeClient(kubeCfgFile)
 
@@ -109,6 +111,7 @@ func New(kubeCfgFile, masterHost string, enableInitDaemonset bool, initDaemonset
 		EnableInitDaemonset:    enableInitDaemonset,
 		InitDaemonsetNamespace: initDaemonsetNamespace,
 		BusyboxImage:           busyboxImage,
+		Context:                ctx,
 	}
 
 	return k, nil
@@ -168,25 +171,37 @@ func newKubeClient(kubeCfgFile string) (genclient.Interface, kubernetes.Interfac
 // CreateKubernetesCustomResourceDefinition checks if ElasticSearch CRD exists. If not, create
 func (k *K8sutil) CreateKubernetesCustomResourceDefinition() error {
 
-	crd, err := k.KubeExt.ApiextensionsV1beta1().CustomResourceDefinitions().Get(elasticsearchoperator.Name, metav1.GetOptions{})
+	crd, err := k.KubeExt.ApiextensionsV1().CustomResourceDefinitions().Get(k.Context, elasticsearchoperator.Name, metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			crdObject := &apiextensionsv1beta1.CustomResourceDefinition{
+			crdObject := &apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: elasticsearchoperator.Name,
 				},
-				Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-					Group:   elasticsearchoperator.GroupName,
-					Version: elasticsearchoperator.Version,
-					Scope:   apiextensionsv1beta1.NamespaceScoped,
-					Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+					Group: elasticsearchoperator.GroupName,
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+						{
+							Name:    elasticsearchoperator.Version,
+							Storage: true,
+							Served:  true,
+							Schema: &apiextensionsv1.CustomResourceValidation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Description: "ElasticsearchCluster",
+									Type:        "object",
+								},
+							},
+						},
+					},
+					Scope: apiextensionsv1.NamespaceScoped,
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
 						Plural: elasticsearchoperator.ResourcePlural,
 						Kind:   elasticsearchoperator.ResourceKind,
 					},
 				},
 			}
 
-			_, err := k.KubeExt.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crdObject)
+			_, err := k.KubeExt.ApiextensionsV1().CustomResourceDefinitions().Create(k.Context, crdObject, metav1.CreateOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -194,18 +209,18 @@ func (k *K8sutil) CreateKubernetesCustomResourceDefinition() error {
 
 			// wait for CRD being established
 			err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
-				createdCRD, err := k.KubeExt.ApiextensionsV1beta1().CustomResourceDefinitions().Get(elasticsearchoperator.Name, metav1.GetOptions{})
+				createdCRD, err := k.KubeExt.ApiextensionsV1().CustomResourceDefinitions().Get(k.Context, elasticsearchoperator.Name, metav1.GetOptions{})
 				if err != nil {
 					return false, err
 				}
 				for _, cond := range createdCRD.Status.Conditions {
 					switch cond.Type {
-					case apiextensionsv1beta1.Established:
-						if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					case apiextensionsv1.Established:
+						if cond.Status == apiextensionsv1.ConditionTrue {
 							return true, nil
 						}
-					case apiextensionsv1beta1.NamesAccepted:
-						if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					case apiextensionsv1.NamesAccepted:
+						if cond.Status == apiextensionsv1.ConditionFalse {
 							return false, fmt.Errorf("Name conflict: %v", cond.Reason)
 						}
 					}
@@ -214,7 +229,7 @@ func (k *K8sutil) CreateKubernetesCustomResourceDefinition() error {
 			})
 
 			if err != nil {
-				deleteErr := k.KubeExt.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(elasticsearchoperator.Name, nil)
+				deleteErr := k.KubeExt.ApiextensionsV1().CustomResourceDefinitions().Delete(k.Context, elasticsearchoperator.Name, metav1.DeleteOptions{})
 				if deleteErr != nil {
 					return errors.NewAggregate([]error{err, deleteErr})
 				}
@@ -237,7 +252,7 @@ func (k *K8sutil) MonitorElasticSearchEvents(stopchan chan struct{}) (<-chan *my
 	events := make(chan *myspec.ElasticsearchCluster)
 	errc := make(chan error, 1)
 
-	source := cache.NewListWatchFromClient(k.CrdClient.EnterprisesV1().RESTClient(), elasticsearchoperator.ResourcePlural, v1.NamespaceAll, fields.Everything())
+	source := cache.NewListWatchFromClient(k.CrdClient.EnterprisesV1().RESTClient(), elasticsearchoperator.ResourcePlural, corev1.NamespaceAll, fields.Everything())
 
 	createAddHandler := func(obj interface{}) {
 		event := obj.(*myspec.ElasticsearchCluster)
@@ -273,15 +288,15 @@ func (k *K8sutil) MonitorElasticSearchEvents(stopchan chan struct{}) (<-chan *my
 }
 
 // MonitorDataPods watches for new or changed data node pods
-func (k *K8sutil) MonitorDataPods(stopchan chan struct{}) (<-chan *v1.Pod, <-chan error) {
-	events := make(chan *v1.Pod)
+func (k *K8sutil) MonitorDataPods(stopchan chan struct{}) (<-chan *corev1.Pod, <-chan error) {
+	events := make(chan *corev1.Pod)
 	errc := make(chan error, 1)
 
 	// create the pod watcher
-	podListWatcher := cache.NewListWatchFromClient(k.Kclient.Core().RESTClient(), "pods", v1.NamespaceAll, fields.Everything())
+	podListWatcher := cache.NewListWatchFromClient(k.Kclient.CoreV1().RESTClient(), "pods", corev1.NamespaceAll, fields.Everything())
 
 	createAddHandler := func(obj interface{}) {
-		event := obj.(*v1.Pod)
+		event := obj.(*corev1.Pod)
 
 		for k, v := range event.ObjectMeta.Labels {
 			if k == "role" && v == "data" {
@@ -292,7 +307,7 @@ func (k *K8sutil) MonitorDataPods(stopchan chan struct{}) (<-chan *v1.Pod, <-cha
 	}
 
 	updateHandler := func(old interface{}, obj interface{}) {
-		event := obj.(*v1.Pod)
+		event := obj.(*corev1.Pod)
 		for k, v := range event.ObjectMeta.Labels {
 			if k == "role" && (v == "data" || v == "master") {
 				events <- event
@@ -301,7 +316,7 @@ func (k *K8sutil) MonitorDataPods(stopchan chan struct{}) (<-chan *v1.Pod, <-cha
 		}
 	}
 
-	_, controller := cache.NewIndexerInformer(podListWatcher, &v1.Pod{}, 0, cache.ResourceEventHandlerFuncs{
+	_, controller := cache.NewIndexerInformer(podListWatcher, &corev1.Pod{}, 0, cache.ResourceEventHandlerFuncs{
 		AddFunc:    createAddHandler,
 		UpdateFunc: updateHandler,
 		DeleteFunc: func(obj interface{}) {},
@@ -323,7 +338,7 @@ func (k *K8sutil) DeleteStatefulSet(deploymentType, clusterName, namespace strin
 	}
 
 	// Get list of data type statefulsets
-	statefulsets, err := k.Kclient.AppsV1beta1().StatefulSets(namespace).List(metav1.ListOptions{LabelSelector: labelSelector})
+	statefulsets, err := k.Kclient.AppsV1().StatefulSets(namespace).List(k.Context, metav1.ListOptions{LabelSelector: labelSelector})
 
 	if err != nil {
 		logrus.Error("Could not get stateful sets! ", err)
@@ -332,7 +347,7 @@ func (k *K8sutil) DeleteStatefulSet(deploymentType, clusterName, namespace strin
 	for _, statefulset := range statefulsets.Items {
 		//Scale the statefulset down to zero (https://github.com/kubernetes/client-go/issues/91)
 		statefulset.Spec.Replicas = new(int32)
-		statefulset, err := k.Kclient.AppsV1beta1().StatefulSets(namespace).Update(&statefulset)
+		statefulset, err := k.Kclient.AppsV1().StatefulSets(namespace).Update(k.Context, &statefulset, metav1.UpdateOptions{})
 
 		if err != nil {
 			logrus.Errorf("Could not scale statefulset: %s ", statefulset.Name)
@@ -340,7 +355,7 @@ func (k *K8sutil) DeleteStatefulSet(deploymentType, clusterName, namespace strin
 			logrus.Infof("Scaled statefulset: %s to zero", statefulset.Name)
 		}
 
-		err = k.Kclient.AppsV1beta1().StatefulSets(namespace).Delete(statefulset.Name, &metav1.DeleteOptions{
+		err = k.Kclient.AppsV1().StatefulSets(namespace).Delete(k.Context, statefulset.Name, metav1.DeleteOptions{
 			PropagationPolicy: func() *metav1.DeletionPropagation {
 				foreground := metav1.DeletePropagationForeground
 				return &foreground
@@ -357,11 +372,11 @@ func (k *K8sutil) DeleteStatefulSet(deploymentType, clusterName, namespace strin
 	return nil
 }
 
-func TemplateImagePullSecrets(ips []myspec.ImagePullSecrets) []v1.LocalObjectReference {
-	var outSecrets []v1.LocalObjectReference
+func TemplateImagePullSecrets(ips []myspec.ImagePullSecrets) []corev1.LocalObjectReference {
+	var outSecrets []corev1.LocalObjectReference
 
 	for _, s := range ips {
-		outSecrets = append(outSecrets, v1.LocalObjectReference{
+		outSecrets = append(outSecrets, corev1.LocalObjectReference{
 			Name: s.Name,
 		})
 	}
@@ -396,17 +411,17 @@ func processDeploymentType(deploymentType string, clusterName string) (string, s
 }
 
 func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, storageClass, dataDiskSize, javaOptions, masterJavaOptions, dataJavaOptions, serviceAccountName,
-	statsdEndpoint, networkHost string, replicas *int32, useSSL *bool, resources myspec.Resources, imagePullSecrets []myspec.ImagePullSecrets, imagePullPolicy string, nodeSelector map[string]string, tolerations []v1.Toleration, annotations map[string]string) *apps.StatefulSet {
+	statsdEndpoint, networkHost string, replicas *int32, useSSL *bool, resources myspec.Resources, imagePullSecrets []myspec.ImagePullSecrets, imagePullPolicy string, nodeSelector map[string]string, tolerations []corev1.Toleration, annotations map[string]string) *appsv1.StatefulSet {
 
 	_, role, isNodeMaster, isNodeData := processDeploymentType(deploymentType, clusterName)
 
 	volumeSize, _ := resource.ParseQuantity(dataDiskSize)
 
 	enableSSL := "true"
-	scheme := v1.URISchemeHTTPS
+	scheme := corev1.URISchemeHTTPS
 	if useSSL != nil && !*useSSL {
 		enableSSL = "false"
-		scheme = v1.URISchemeHTTP
+		scheme = corev1.URISchemeHTTP
 	}
 
 	// parse javaOptions and see if master,data nodes are using different options
@@ -427,23 +442,23 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 	requestCPU, _ := resource.ParseQuantity(resources.Requests.CPU)
 	requestMemory, _ := resource.ParseQuantity(resources.Requests.Memory)
 
-	readinessProbe := &v1.Probe{
+	readinessProbe := &corev1.Probe{
 		TimeoutSeconds:      30,
 		InitialDelaySeconds: 10,
 		FailureThreshold:    15,
-		Handler: v1.Handler{
-			TCPSocket: &v1.TCPSocketAction{
+		Handler: corev1.Handler{
+			TCPSocket: &corev1.TCPSocketAction{
 				Port: intstr.FromInt(9300),
 			},
 		},
 	}
 
-	livenessProbe := &v1.Probe{
+	livenessProbe := &corev1.Probe{
 		TimeoutSeconds:      30,
 		InitialDelaySeconds: 120,
 		FailureThreshold:    15,
-		Handler: v1.Handler{
-			HTTPGet: &v1.HTTPGetAction{
+		Handler: corev1.Handler{
+			HTTPGet: &corev1.HTTPGetAction{
 				Port:   intstr.FromInt(9200),
 				Path:   clusterHealthURL,
 				Scheme: scheme,
@@ -454,7 +469,7 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 	component := fmt.Sprintf("elasticsearch-%s", clusterName)
 	discoveryServiceNameCluster := fmt.Sprintf("%s-%s", discoveryServiceName, clusterName)
 
-	statefulSet := &apps.StatefulSet{
+	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: statefulSetName,
 			Labels: map[string]string{
@@ -464,7 +479,7 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 				"cluster":   clusterName,
 			},
 		},
-		Spec: apps.StatefulSetSpec{
+		Spec: appsv1.StatefulSetSpec{
 			Replicas:    replicas,
 			ServiceName: statefulSetName,
 			Selector: &metav1.LabelSelector{
@@ -475,7 +490,7 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 					"cluster":   clusterName,
 				},
 			},
-			Template: v1.PodTemplateSpec{
+			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"component": component,
@@ -485,15 +500,15 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 					},
 					Annotations: annotations,
 				},
-				Spec: v1.PodSpec{
+				Spec: corev1.PodSpec{
 					Tolerations:  tolerations,
 					NodeSelector: nodeSelector,
-					Affinity: &v1.Affinity{
-						PodAntiAffinity: &v1.PodAntiAffinity{
-							PreferredDuringSchedulingIgnoredDuringExecution: []v1.WeightedPodAffinityTerm{
+					Affinity: &corev1.Affinity{
+						PodAntiAffinity: &corev1.PodAntiAffinity{
+							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
 								{
 									Weight: 100,
-									PodAffinityTerm: v1.PodAffinityTerm{
+									PodAffinityTerm: corev1.PodAffinityTerm{
 										LabelSelector: &metav1.LabelSelector{
 											MatchExpressions: []metav1.LabelSelectorRequirement{
 												{
@@ -508,107 +523,107 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 								},
 							},
 						}},
-					Containers: []v1.Container{
-						v1.Container{
+					Containers: []corev1.Container{
+						{
 							Name: statefulSetName,
-							SecurityContext: &v1.SecurityContext{
+							SecurityContext: &corev1.SecurityContext{
 								Privileged: &[]bool{true}[0],
-								Capabilities: &v1.Capabilities{
-									Add: []v1.Capability{
+								Capabilities: &corev1.Capabilities{
+									Add: []corev1.Capability{
 										"IPC_LOCK",
 									},
 								},
 							},
 							Image:           baseImage,
-							ImagePullPolicy: v1.PullPolicy(imagePullPolicy),
-							Env: []v1.EnvVar{
-								v1.EnvVar{
+							ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
+							Env: []corev1.EnvVar{
+								{
 									Name: "NAMESPACE",
-									ValueFrom: &v1.EnvVarSource{
-										FieldRef: &v1.ObjectFieldSelector{
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
 											FieldPath: "metadata.namespace",
 										},
 									},
 								},
-								v1.EnvVar{
+								{
 									Name:  "CLUSTER_NAME",
 									Value: clusterName,
 								},
-								v1.EnvVar{
+								{
 									Name:  "NODE_MASTER",
 									Value: isNodeMaster,
 								},
-								v1.EnvVar{
+								{
 									Name:  "NODE_DATA",
 									Value: isNodeData,
 								},
-								v1.EnvVar{
+								{
 									Name:  "HTTP_ENABLE",
 									Value: "true",
 								},
-								v1.EnvVar{
+								{
 									Name:  "SEARCHGUARD_SSL_TRANSPORT_ENABLED",
 									Value: enableSSL,
 								},
-								v1.EnvVar{
+								{
 									Name:  "SEARCHGUARD_SSL_HTTP_ENABLED",
 									Value: enableSSL,
 								},
-								v1.EnvVar{
+								{
 									Name:  "ES_JAVA_OPTS",
 									Value: esJavaOps,
 								},
-								v1.EnvVar{
+								{
 									Name:  "STATSD_HOST",
 									Value: statsdEndpoint,
 								},
-								v1.EnvVar{
+								{
 									Name:  "DISCOVERY_SERVICE",
 									Value: discoveryServiceNameCluster,
 								},
-								v1.EnvVar{
+								{
 									Name:  "NETWORK_HOST",
 									Value: networkHost,
 								},
 							},
-							Ports: []v1.ContainerPort{
-								v1.ContainerPort{
+							Ports: []corev1.ContainerPort{
+								{
 									Name:          "transport",
 									ContainerPort: 9300,
-									Protocol:      v1.ProtocolTCP,
+									Protocol:      corev1.ProtocolTCP,
 								},
-								v1.ContainerPort{
+								{
 									Name:          "http",
 									ContainerPort: 9200,
-									Protocol:      v1.ProtocolTCP,
+									Protocol:      corev1.ProtocolTCP,
 								},
 							},
 							ReadinessProbe: readinessProbe,
 							LivenessProbe:  livenessProbe,
-							VolumeMounts: []v1.VolumeMount{
-								v1.VolumeMount{
+							VolumeMounts: []corev1.VolumeMount{
+								{
 									Name:      "es-data",
 									MountPath: "/data",
 								},
 							},
-							Resources: v1.ResourceRequirements{
+							Resources: corev1.ResourceRequirements{
 								// Limits: v1.ResourceList{
 								// 	"cpu":    limitCPU,
 								// 	"memory": limitMemory,
 								// },
-								Requests: v1.ResourceList{
+								Requests: corev1.ResourceList{
 									"cpu":    requestCPU,
 									"memory": requestMemory,
 								},
 							},
 						},
 					},
-					Volumes:          []v1.Volume{},
+					Volumes:          []corev1.Volume{},
 					ImagePullSecrets: TemplateImagePullSecrets(imagePullSecrets),
 				},
 			},
-			VolumeClaimTemplates: []v1.PersistentVolumeClaim{
-				v1.PersistentVolumeClaim{
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "es-data",
 						Labels: map[string]string{
@@ -618,13 +633,13 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 							"cluster":   clusterName,
 						},
 					},
-					Spec: v1.PersistentVolumeClaimSpec{
-						AccessModes: []v1.PersistentVolumeAccessMode{
-							v1.ReadWriteOnce,
+					Spec: corev1.PersistentVolumeClaimSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{
+							corev1.ReadWriteOnce,
 						},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								v1.ResourceStorage: volumeSize,
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: volumeSize,
 							},
 						},
 					},
@@ -637,17 +652,17 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 
 	if *useSSL {
 		// Certs volume
-		statefulSet.Spec.Template.Spec.Volumes = append(statefulSet.Spec.Template.Spec.Volumes, v1.Volume{
+		statefulSet.Spec.Template.Spec.Volumes = append(statefulSet.Spec.Template.Spec.Volumes, corev1.Volume{
 			Name: clusterSecretName,
-			VolumeSource: v1.VolumeSource{
-				Secret: &v1.SecretVolumeSource{
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
 					SecretName: clusterSecretName,
 				},
 			},
 		})
 		// Mount certs
 		statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts = append(statefulSet.Spec.Template.Spec.Containers[0].VolumeMounts,
-			v1.VolumeMount{
+			corev1.VolumeMount{
 				Name:      clusterSecretName,
 				MountPath: elasticsearchCertspath,
 			})
@@ -668,14 +683,14 @@ func buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, s
 
 // CreateDataNodeDeployment creates the data node deployment
 func (k *K8sutil) CreateDataNodeDeployment(deploymentType string, replicas *int32, baseImage, storageClass string, dataDiskSize string, resources myspec.Resources,
-	imagePullSecrets []myspec.ImagePullSecrets, imagePullPolicy, serviceAccountName, clusterName, statsdEndpoint, networkHost, namespace, javaOptions, masterJavaOptions, dataJavaOptions string, useSSL *bool, esUrl string, nodeSelector map[string]string, tolerations []v1.Toleration, annotations map[string]string) error {
+	imagePullSecrets []myspec.ImagePullSecrets, imagePullPolicy, serviceAccountName, clusterName, statsdEndpoint, networkHost, namespace, javaOptions, masterJavaOptions, dataJavaOptions string, useSSL *bool, esUrl string, nodeSelector map[string]string, tolerations []corev1.Toleration, annotations map[string]string) error {
 
 	deploymentName, _, _, _ := processDeploymentType(deploymentType, clusterName)
 
 	statefulSetName := fmt.Sprintf("%s-%s", deploymentName, storageClass)
 
 	// Check if StatefulSet exists
-	statefulSet, err := k.Kclient.AppsV1beta2().StatefulSets(namespace).Get(statefulSetName, metav1.GetOptions{})
+	statefulSet, err := k.Kclient.AppsV1().StatefulSets(namespace).Get(k.Context, statefulSetName, metav1.GetOptions{})
 
 	if len(statefulSet.Name) == 0 {
 
@@ -684,7 +699,7 @@ func (k *K8sutil) CreateDataNodeDeployment(deploymentType string, replicas *int3
 		statefulSet := buildStatefulSet(statefulSetName, clusterName, deploymentType, baseImage, storageClass, dataDiskSize, javaOptions, masterJavaOptions, dataJavaOptions, serviceAccountName,
 			statsdEndpoint, networkHost, replicas, useSSL, resources, imagePullSecrets, imagePullPolicy, nodeSelector, tolerations, annotations)
 
-		if _, err := k.Kclient.AppsV1beta2().StatefulSets(namespace).Create(statefulSet); err != nil {
+		if _, err := k.Kclient.AppsV1().StatefulSets(namespace).Create(k.Context, statefulSet, metav1.CreateOptions{}); err != nil {
 			logrus.Error("Could not create stateful set: ", err)
 			return err
 		}
@@ -703,7 +718,7 @@ func (k *K8sutil) CreateDataNodeDeployment(deploymentType string, replicas *int3
 				elasticsearchutil.UpdateDiscoveryMinMasterNodes(esUrl, minMasterNodes)
 			}
 			statefulSet.Spec.Replicas = replicas
-			_, err := k.Kclient.AppsV1beta2().StatefulSets(namespace).Update(statefulSet)
+			_, err := k.Kclient.AppsV1().StatefulSets(namespace).Update(k.Context, statefulSet, metav1.UpdateOptions{})
 
 			if err != nil {
 				logrus.Error("Could not scale statefulSet: ", err)
